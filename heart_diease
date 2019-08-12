@@ -1,0 +1,343 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split,cross_val_score
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import classification_report,confusion_matrix,accuracy_score
+from sklearn.model_selection import GridSearchCV
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn import metrics
+
+class Heart:
+    def __init__(self,data):
+        self.dataset = pd.read_csv(data)
+
+
+    def dataset_information(self):
+        # '''gives dataset inforamtion'''
+        print(self.dataset.info())
+        # '''Generates descriptive statistics'''
+        print(self.dataset['chol'].describe())
+
+
+    def Visualizer(self):
+        dataset = self.dataset
+        # '''visualizing the distribution of target variable'''
+        sns.countplot(x='target',hue='target',data=dataset)
+        plt.xlabel('disease')
+        plt.ylabel('count')
+        plt.title('Distribution of heart disease')
+        plt.show()
+
+        # ''' Gives a correlation matrix between features and response variables'''
+        sns.heatmap(dataset.corr(),annot=True)
+
+        # '''visualizing the data distribution with histogram'''
+        dataset.hist()
+
+        # ''' visualizes the numerical variables realtionship with target using pairplot '''
+        columns = ['age','trestbps', 'chol', 'thalach', 'oldpeak','target']
+        data = dataset[columns]
+        sns.pairplot(data,size=1)
+        plt.show()
+
+        # '''visualizing sex vs target variable'''
+        sns.countplot(x='target',data=dataset,hue='sex')
+        plt.legend(('female','male'))
+        plt.show()
+
+
+        # '''features realtionship using scatter plot '''
+        fig,ax1 = plt.subplots(2,2)
+        sns.scatterplot(x='age',y='thalach',data=dataset,hue='target',ax=ax1[0][0])
+        ax1[0][0].legend(['no_disease','disease'])
+        sns.scatterplot(x='age',y='trestbps',data=dataset,hue='target',ax=ax1[0][1])
+        ax1[0][1].legend(['no_disease', 'disease'])
+        sns.scatterplot(x='thalach', y='trestbps', data=dataset, hue='target', ax=ax1[1][0])
+        ax1[1][0].legend(['no_disease', 'disease'])
+        sns.scatterplot(x='sex', y='chol', data=dataset, hue='target', ax=ax1[1][1])
+        ax1[1][1].legend(['no_disease', 'disease'])
+        plt.show()
+        # '''scatter plot for heart rate vs cholestrol'''
+        sns.scatterplot(x='chol',y='thalach',data=data,hue='target')
+        plt.show()
+
+
+    def data_processing(self):
+        data = self.dataset
+
+        # ''' one hot encoding '''
+        data = pd.get_dummies(data, columns=['sex', 'cp', 'fbs', 'restecg', 'exang','ca', 'slope', 'thal'],drop_first=True)
+
+        # ''' scaling the data'''
+        Scale = StandardScaler()
+        data_to_scale = ['age','trestbps', 'chol', 'thalach', 'oldpeak']
+
+
+        data[data_to_scale] = Scale.fit_transform(data[data_to_scale])
+
+        return data
+
+
+    def split(self):
+        data = self.data_processing()
+        Y = data['target']
+        X = data.drop('target',axis=1)
+
+
+        # '''Spliting data for training and testing'''
+        X_train,X_test,Y_train,Y_test = train_test_split(X,Y,test_size=0.3,random_state=2)
+        # print(X_train.shape[1])
+
+        return X_train,X_test,Y_train,Y_test,X,Y
+
+    def cross_valdiaton(self,clf,X,Y,cv=3):
+        score = cross_val_score(clf,X,Y,cv=cv,scoring='accuracy')
+        print('cross_valdiation_score:',score.mean())
+
+
+
+
+
+    def plotter(self,x_axis,y_axis,scores,xlabel,ylabel,ticks=False):
+
+        plt.plot(x_axis,y_axis)
+        for i in range(len(scores)):
+            plt.text(i,scores[i],(i+1,scores[i]))
+            plt.xlabel(xlabel)
+            plt.ylabel(ylabel)
+            if ticks == True:
+                plt.xticks(x_axis)
+        plt.show()
+
+    def bar(self,x_axis,y_axis,scores,color):
+        plt.bar(x_axis,y_axis, color=color)
+        for i in range(len(scores)):
+            plt.text(i, scores[i], scores[i])
+        plt.xlabel('models')
+        plt.ylabel('accuracy')
+        plt.show()
+
+    def metrics(self,y_true,prediction):
+        print('accuracy_score:', accuracy_score(y_true, prediction))
+        print('confusion_metrix:',confusion_matrix(y_true,prediction))
+        print('classification_report:', classification_report(y_true, prediction))
+
+
+
+    def KNN_Classifier(self):
+
+        # '''training the model on  20 neighbors to get the best k neighbor'''
+        X_train, X_test, Y_train, Y_test ,X,Y= self.split()
+        krange = range(1,X_train.shape[1]+1)
+        k_scores = []
+        Classification_report = []
+        for k in krange:
+            knn = KNeighborsClassifier(n_neighbors=k)
+            knn.fit(X_train,Y_train)
+            k_scores.append(knn.score(X_test,Y_test))
+            prediction = knn.predict(X_test)
+            Classification_report.append(classification_report(Y_test,prediction))
+        print('Accuracy:',max(k_scores))
+        print('Classification report:',max(Classification_report))
+        K = max(k_scores)
+
+
+        # '''plotting a line graph'''
+        self.plotter(krange, k_scores, k_scores, 'number of k', 'scores',ticks=True)
+
+
+        # '''knn using cross valdiation'''
+        K_scores =[]
+        for k in krange:
+            knn = KNeighborsClassifier(n_neighbors=k)
+            score = cross_val_score(knn,X,Y,cv=10,scoring='accuracy')
+            K_scores.append(score.mean())
+        print('cross_validation_accuracy:',max(K_scores))
+
+
+        # '''plotting  a line graph '''
+        self.plotter(krange,K_scores,K_scores,'number of k','scores',ticks=True)
+
+        return K
+
+
+    def Logistic(self):
+
+        # '''training logistic model using Gridsearchcv  with cross_valdiation of 10 kfold'''
+        x_train, x_test, y_train, y_test, X, Y = self.split()
+
+
+        logreg = LogisticRegression(solver='liblinear')
+        parameters = {'C':(0.01,0.1,1,10),'penalty':('l1','l2')}
+        grid = GridSearchCV(logreg,parameters,scoring='accuracy',cv=10)
+        grid.fit(x_train,y_train)
+        print('best_params:',grid.best_params_)
+
+
+        # '''final logistic model with best hyperparameter'''
+        log_accuracy =[]
+        logreg = LogisticRegression(solver='liblinear',C=10,penalty='l1')
+        logreg.fit(x_train,y_train)
+        pre = logreg.predict(x_test)
+        log_accuracy.append(accuracy_score(y_test,pre))
+        logacc = accuracy_score(y_test, pre)
+        print(logreg.coef_)
+        self.metrics(y_test,pre)
+
+        # training model using cross_val_score
+        self.cross_valdiaton(logreg,X,Y,cv=10)
+
+
+        # ''' plotting a roc curve'''
+        fpr,tpr,r = metrics.roc_curve(y_test,pre)
+        self.plotter(fpr,tpr,log_accuracy, 'fpr', 'tpr_scores')
+
+        return logacc
+
+
+    def SVM(self):
+        x_train, x_test, y_train, y_test, X, Y = self.split()
+
+        # '''Hypermeter tuning for svm'''
+        paremeter1 = [{'kernel':['linear'],'C':(0.1,1,0.01,2),'gamma':[0.1,1,0.01,2]}]
+        paremeter2 = [{'kernel':['rbf'],'C':(0.1,1,0.01,2),'gamma':[0.1,1,0.01,2]}]
+        paremeter3 = [{'kernel': ['poly'], 'C': (0.1, 1, 0.01, 2), 'gamma': [0.1, 1, 0.01, 2]}]
+        paremeter4 = [{'kernel': ['sigmoid'], 'C': (0.1, 1, 0.01, 2), 'gamma': [0.1, 1, 0.01, 2]}]
+
+        svscores =[]
+
+        svc = SVC()
+        grid = GridSearchCV(svc,paremeter1,scoring='accuracy',cv=5)
+        grid.fit(x_train,y_train)
+        pre = grid.predict(x_test)
+        print('best_params_:', grid.best_params_)
+        print('accuracy:', accuracy_score(y_test, pre))
+        svscores.append(accuracy_score(y_test,pre))
+        grid = GridSearchCV(svc, paremeter2, scoring='accuracy', cv=5)
+        grid.fit(x_train, y_train)
+        pre = grid.predict(x_test)
+        print('best_params_:', grid.best_params_)
+        print('accuracy:', accuracy_score(y_test, pre))
+        svscores.append(accuracy_score(y_test, pre))
+        grid = GridSearchCV(svc, paremeter3, scoring='accuracy', cv=5)
+        grid.fit(x_train, y_train)
+        pre = grid.predict(x_test)
+        print('best_params_:', grid.best_params_)
+        print('accuracy:', accuracy_score(y_test, pre))
+        svscores.append(accuracy_score(y_test, pre))
+        grid = GridSearchCV(svc, paremeter4, scoring='accuracy', cv=5)
+        grid.fit(x_train, y_train)
+        pre = grid.predict(x_test)
+        print('best_params_:',grid.best_params_)
+        print('accuracy:',accuracy_score(y_test, pre))
+        svscores.append(accuracy_score(y_test, pre))
+
+        '''Final model'''
+        svc = SVC(kernel='sigmoid',C=2,gamma=0.01)
+        svc.fit(x_train,y_train)
+        predic = svc.predict(x_test)
+        self.metrics(y_test,predic)
+
+        # '''plotting a bar with best kernel'''
+        krenels = ['linear','rbf','poly','sigmoid']
+        self.plotter(krenels,svscores,svscores,'kernels','scores')
+
+        # '''training model using cross_val_score'''
+        self.cross_valdiaton(svc,X,Y,cv=10)
+
+        SVC_SCORE = max(svscores)
+
+        return SVC_SCORE
+
+
+    def Decision_Tree(self):
+        x_train, x_test, y_train, y_test, X, Y = self.split()
+
+        # '''Hyperparameter tuning for decision tree'''
+        treescore = []
+        parameter1 = [{'criterion':['gini'],'max_depth':(6,8,10,12),'min_samples_split':(2,3,4),'max_features':(14,15,16,18,20,22)}]
+        parameter2 = [{'criterion':['entropy'],'max_depth':(6,8,10,12),'min_samples_split':(2,3,4),'max_features':(14,15,16,18,20,22)}]
+        tree = DecisionTreeClassifier(random_state=0)
+        grid = GridSearchCV(tree,parameter1,scoring='accuracy',cv=5)
+        grid.fit(x_train,y_train)
+        predic = grid.predict(x_test)
+        print('best_params_',grid.best_params_)
+        treescore.append(accuracy_score(y_test,predic))
+        '''second grid'''
+        grid = GridSearchCV(tree, parameter2, scoring='accuracy', cv=5)
+        grid.fit(x_train, y_train)
+        predic = grid.predict(x_test)
+        print('best_params_', grid.best_params_)
+        treescore.append(accuracy_score(y_test, predic))
+
+
+        # '''final model'''
+        Tree =DecisionTreeClassifier(criterion='entropy',max_depth=12,max_features=16,min_samples_split=4,random_state=0)
+        Tree.fit(x_train,y_train)
+        pr = Tree.predict(x_test)
+        self.metrics(y_test,pr)
+
+
+        # '''plotting a bar graph for model'''
+        criterion = ['gini','entropy']
+        self.plotter(criterion,treescore,treescore,'criterion','accuracy')
+
+        # '''training model using cross_val_score'''
+        self.cross_valdiaton(Tree,X,Y,cv=10)
+
+        return max(treescore)
+
+
+    def Random_Forest(self):
+
+        x_train, x_test, y_train, y_test, X, Y = self.split()
+
+        rf_scores = []
+        estimators = [10, 100, 200, 500, 1000]
+        for i in estimators:
+            rf_classifier = RandomForestClassifier(n_estimators=i, random_state=0)
+            rf_classifier.fit(x_train, y_train)
+            rf_scores.append(rf_classifier.score(x_test, y_test))
+        RF = max(rf_scores)
+        print('rf_acc:',max(rf_scores))
+
+
+        estimator = ['10', '100', '200', '500', '1000']
+        color = ['r', 'b', 'm', 'g', 'y']
+        self.bar(estimator,rf_scores,rf_scores,color)
+
+        return RF
+
+
+    def final_plot(self,lg_score,knn_score,svm_score,tree_score,random_score):
+
+        scores = [lg_score,knn_score,svm_score,tree_score,random_score]
+        models = ['log','knn','svm','tree','random_f']
+        color = ['r', 'b', 'm', 'g', 'y']
+
+        self.bar(models,scores,scores,color)
+
+        # plt.bar(models,scores,)
+        # for i in range(len(scores)):
+        #     plt.text(i, scores[i],scores[i])
+        # plt.xlabel('models')
+        # plt.ylabel('accuracy')
+        # plt.show()
+
+
+H = Heart('file:///E:/data science/practice/heart.csv')
+H.dataset_information()
+# H.split()
+# H.Visualizer()
+log_score = H.Logistic()
+# knn_score = H.KNN_Classifier()
+# svm_score = H.SVM()
+# tree_score = H.Decision_Tree()
+# random_score = H.Random_Forest()
+
+# H.final_plot(log_score,knn_score,svm_score,tree_score,random_score)
